@@ -22,10 +22,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', type=str, default='hanoi_operator_actions',
                         help='Name of PDDL domain')
-    parser.add_argument('--problem_index', type=int, default=None,
-                        help='The index of the particular problem file to use')
-    parser.add_argument('--random_seed','-s', type=int, default=1,
-                        help='Seed to use for RNGs')
+    parser.add_argument('--seed','-s', type=int, default=0,
+                        help='The problem file index and seed to use for RNGs')
+    parser.add_argument('--difficulty', '-d', type=str, choices=['easy', 'medium', 'hard'],
+                        default=None,  help='Which problem to use based on difficulty w.r.t. full set')
     parser.add_argument('--max_transitions', type=lambda x: int(float(x)), default=100000,
                         help='Maximum number of simulator transitions')
     parser.add_argument('--save_best_n', type=int, default=1000,
@@ -33,21 +33,28 @@ def main():
     args = parser.parse_args()
 
     # Set up the domain
-    random.seed(args.random_seed)
-    env = gym.make("PDDLEnv{}-v0".format(args.env_name.capitalize()))
+    env = gym.make("PDDLEnv-IPC-{}-v0".format(args.env_name.capitalize()))
     env._render = None
-    env.fix_problem_index(args.problem_index)
-    env.seed(args.random_seed)
+    if args.difficulty == 'easy':
+        args.seed = 0
+    elif args.difficulty == 'medium':
+        args.seed = (len(env.problems)-1)//2
+    elif args.difficulty == 'hard':
+        args.seed = (len(env.problems)-1)
+    print('Using seed {}'.format(args.seed))
+    env.fix_problem_index(args.seed)
+    env.seed(args.seed)
+    random.seed(args.seed)
 
     start, _ = env.reset()
-    env.action_space.seed(args.random_seed)
+    env.action_space.seed(args.seed)
     goal = start.goal
 
-    print('Using seed: {:03d}'.format(args.random_seed))
+    print('Using seed: {:03d}'.format(args.seed))
     print('Objects:', sorted(list(start.objects)))
     print('Goal:', goal)
 
-    tag = '{}/problem-{:02d}'.format(args.env_name, args.problem_index)
+    tag = '{}/problem-{:02d}'.format(args.env_name, args.seed)
 
     #%% Configure the search
     def heuristic(state):
@@ -79,9 +86,9 @@ def main():
                                   save_best_n = args.save_best_n)
 
     #%% Save the results
-    results_dir = 'results/macros/pddlgym/{}/'.format(tag)
+    results_dir = 'results/macros/pddlgym/ipc-strips/{}/'.format(tag)
     os.makedirs(results_dir, exist_ok=True)
-    macros_filename = results_dir+'seed{:03d}-macros.pickle'.format(args.random_seed, tag)
+    macros_filename = results_dir+'seed{:03d}-macros.pickle'.format(args.seed, tag)
     with open(macros_filename, 'wb') as file:
         pickle.dump(search_results, file)
 
